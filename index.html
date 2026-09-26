@@ -21,19 +21,22 @@
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);padding:0 20px;
     font:15px/1.62 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
-  .wrap{max-width:960px;margin:0 auto;padding-block:44px 80px}
+  .wrap{max-width:1100px;margin:0 auto;padding-block:44px 80px}
   header{border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:24px}
   h1{font-size:30px;margin:0 0 5px;letter-spacing:-.02em}
   h1 span{color:var(--cy)}
   .sub{color:var(--mut);margin:0}
-  h2{font-size:11.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--mut);
-     margin:34px 0 10px;font-family:ui-monospace,Menlo,monospace}
-  h2 b{color:var(--cy);font-weight:700}
+  h2{font-size:24px;font-weight:300;letter-spacing:-.015em;color:var(--ink);
+     margin:46px 0 10px;display:flex;align-items:center;gap:16px}
+  h2::before{content:"";width:34px;height:2px;background:var(--cy);flex:0 0 34px}
+  h2::after{content:"";flex:1;height:1px;background:var(--line)}
+  h2 b{display:none}
   p{margin:0 0 12px}
-  .lede{font-size:17px}
+  .lede{font-size:18px;font-weight:300;line-height:1.55;max-width:66ch}
   .note{color:var(--mut);font-size:13px}
   code,.m{font-family:ui-monospace,Menlo,monospace;font-size:12.5px}
-  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:12px}
+  .panel{background:transparent;border:0;border-radius:0;
+    padding:6px 0 26px 50px;margin:0}
   button{font:inherit;font-size:14px;padding:9px 16px;border-radius:6px;cursor:pointer;
     background:var(--cy);color:#04161a;border:none;font-weight:700}
   button:hover{filter:brightness(1.08)}
@@ -92,7 +95,7 @@
   no wallet.
 </p>
 
-<h2><b>1</b> · Build a route and send the same payment twice</h2>
+<h2><b>1</b>Build a route, send the same payment twice</h2>
 <p class="note">
   One sender, one recipient, and intermediaries in between. The identical payment is constructed
   both ways so the two schemes can be compared on equal terms.
@@ -106,7 +109,7 @@
   <div id="routeOut"></div>
 </div>
 
-<h2><b>2</b> · What each hop is shown</h2>
+<h2><b>2</b>What each hop is shown</h2>
 <p class="note">
   The same route, the same payment, the two schemes side by side. One column repeats; the other
   does not.
@@ -116,7 +119,7 @@
   <div id="showOut"></div>
 </div>
 
-<h2><b>3</b> · Two hops compare notes</h2>
+<h2><b>3</b>Two hops compare notes</h2>
 <p class="note">
   Pick any two intermediaries and let them collude. They exchange exactly what their own channel
   showed them, which is all a real node ever has.
@@ -130,7 +133,7 @@
   <div id="colludeOut"></div>
 </div>
 
-<h2><b>4</b> · It still has to pay</h2>
+<h2><b>4</b>It still has to pay</h2>
 <p class="note">
   Unlinkability is worthless if the money stops moving. The secret is walked back along the route
   and every hop's own lock is opened by the scalar it derives, checked here against the point it
@@ -141,12 +144,14 @@
   <div id="settleOut"></div>
 </div>
 
-<h2>What is actually being trusted</h2>
+<h2>What the route can still work out</h2>
 <p>
-  secp256k1, and the sender to pick its blinding offsets at random. Nothing else. No
-  intermediary has to be honest for the privacy to hold, because none of them is given anything
-  worth comparing. The recipient's secret never appears on the route at all, and the hop nearest
-  the recipient learns a scalar that is not it.
+  Each hop knows its immediate neighbours, which onion routing already grants it, and the value it
+  was asked to lock. Under point-locking that value is unique to it, so two hops comparing notes
+  end up holding two unrelated curve points and learn nothing they did not already have. The
+  recipient's secret never travels the route at all, and even the last hop before the recipient
+  derives a scalar that is not it. Load-bearing: secp256k1, and the sender drawing its blinding
+  offsets at random.
 </p>
 <p class="note" id="scope">
   Implemented: per-hop blinded payment points, the backwards settlement walk with each hop's
@@ -159,7 +164,7 @@
 
 <footer>
   <p><a href="https://github.com/Leihyn/sidelight">Source</a> · <a href="https://x.com/faruukku">@faruukku</a></p>
-  <p class="note">Demonstration keys, generated in your browser. Nothing is transmitted anywhere.</p>
+  <p class="note">Every hop on this route exists only in your browser.</p>
 </footer>
 
 </div>
