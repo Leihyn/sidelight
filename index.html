@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="ory-verify" content="PASTE_SIDELIGHT_TOKEN_HERE">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Two nodes that carried the same Lightning payment can prove it to each other, because every hop sees the same hash. Point time-locked contracts remove that. Working PTLC routing in the browser.">
+<meta name="twitter:creator" content="@faruukku">
+<link rel="me" href="https://x.com/faruukku">
+<link rel="icon" href="/logo.png">
+<meta property="og:title" content="Sidelight — a payment its own route cannot recognise">
+<meta property="og:description" content="Under HTLCs every hop sees the same hash, so two hops can prove they carried one payment. Under PTLCs each hop sees a different point.">
+<title>Sidelight — a payment its own route cannot recognise</title>
+<style>
+  :root{
+    color-scheme:dark;
+    --bg:#0c0a14; --panel:#14111f; --line:#241f35; --line2:#1b1728;
+    --ink:#e9e6f2; --mut:#867e9c;
+    --cy:#22d3ee; --mag:#f472b6; --ok:#4ade80; --no:#fb7185; --dim:#5b5473;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);padding:0 20px;
+    font:15px/1.62 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:960px;margin:0 auto;padding-block:44px 80px}
+  header{border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:24px}
+  h1{font-size:30px;margin:0 0 5px;letter-spacing:-.02em}
+  h1 span{color:var(--cy)}
+  .sub{color:var(--mut);margin:0}
+  h2{font-size:11.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--mut);
+     margin:34px 0 10px;font-family:ui-monospace,Menlo,monospace}
+  h2 b{color:var(--cy);font-weight:700}
+  p{margin:0 0 12px}
+  .lede{font-size:17px}
+  .note{color:var(--mut);font-size:13px}
+  code,.m{font-family:ui-monospace,Menlo,monospace;font-size:12.5px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:12px}
+  button{font:inherit;font-size:14px;padding:9px 16px;border-radius:6px;cursor:pointer;
+    background:var(--cy);color:#04161a;border:none;font-weight:700}
+  button:hover{filter:brightness(1.08)}
+  button.g{background:transparent;color:var(--mag);border:1px solid var(--line);font-weight:400}
+  button:disabled{opacity:.34;cursor:not-allowed}
+  .row{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+  label{font-size:12px;color:var(--mut)}
+  select{font:inherit;font-size:13px;background:#0f0d18;color:var(--ink);
+    border:1px solid var(--line);border-radius:6px;padding:7px 9px}
+  .out{margin-top:13px;padding:13px;background:#08060e;border:1px solid var(--line2);
+    border-radius:7px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;word-break:break-all}
+  .k{color:var(--mut);font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px}
+  .v{margin-bottom:11px}.v:last-child{margin-bottom:0}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line2);white-space:nowrap}
+  th{color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+  td.m{font-family:ui-monospace,Menlo,monospace}
+  tr.same td.m{color:var(--no)}
+  tr.uniq td.m{color:var(--cy)}
+  .pill{display:inline-block;font-family:ui-monospace,Menlo,monospace;font-size:11px;
+    padding:2px 9px;border-radius:20px;border:1px solid var(--line);white-space:nowrap}
+  .pill.ok{border-color:var(--ok);color:var(--ok);background:rgba(74,222,128,.1)}
+  .pill.no{border-color:var(--no);color:var(--no);background:rgba(251,113,133,.1)}
+  .route{display:flex;align-items:center;gap:0;flex-wrap:wrap;margin:6px 0 2px}
+  .node{border:1px solid var(--line);border-radius:8px;padding:7px 11px;font-size:12px;
+    font-family:ui-monospace,Menlo,monospace;background:#0f0d18;white-space:nowrap}
+  .node.end{border-color:var(--cy);color:var(--cy)}
+  .node.spy{border-color:var(--mag);color:var(--mag)}
+  .link{flex:0 0 26px;height:2px;background:var(--dim)}
+  .err{background:rgba(251,113,133,.09);border:1px solid #45283a;color:#ffc6cf;
+    border-radius:7px;padding:11px;font-size:13.5px;margin-top:11px}
+  .scroll{overflow-x:auto}
+  footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--mut);font-size:13.5px}
+  a{color:var(--mag)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Side<span>light</span></h1>
+  <p class="sub">A payment that the route carrying it cannot recognise as one payment.</p>
+</header>
+
+<p class="lede">
+  Lightning payments travel through intermediaries, and under the hash-locked contracts in use
+  today every one of those intermediaries sees the same payment hash. Any two of them can compare
+  notes and prove they carried the same payment. Do that across enough of the network and the
+  route reassembles, along with who paid whom.
+</p>
+<p class="note">
+  Point time-locked contracts replace the shared hash with a curve point, and the sender blinds
+  that point differently for every hop. Each intermediary is offered a value nothing else on the
+  route shares, and the payment still settles because each hop can derive its own secret from the
+  next one's. Everything here runs in this tab, on real secp256k1 arithmetic. No server, no node,
+  no wallet.
+</p>
+
+<h2><b>1</b> · Build a route and send the same payment twice</h2>
+<p class="note">
+  One sender, one recipient, and intermediaries in between. The identical payment is constructed
+  both ways so the two schemes can be compared on equal terms.
+</p>
+<div class="panel">
+  <div class="row" style="margin-bottom:12px">
+    <label for="hops">Intermediaries</label>
+    <select id="hops"><option>3</option><option selected>5</option><option>7</option><option>9</option></select>
+    <button id="send">Send it both ways</button>
+  </div>
+  <div id="routeOut"></div>
+</div>
+
+<h2><b>2</b> · What each hop is shown</h2>
+<p class="note">
+  The same route, the same payment, the two schemes side by side. One column repeats; the other
+  does not.
+</p>
+<div class="panel">
+  <div class="row"><button id="show" disabled>Show every hop's lock</button></div>
+  <div id="showOut"></div>
+</div>
+
+<h2><b>3</b> · Two hops compare notes</h2>
+<p class="note">
+  Pick any two intermediaries and let them collude. They exchange exactly what their own channel
+  showed them, which is all a real node ever has.
+</p>
+<div class="panel">
+  <div class="row">
+    <label for="spyA">First</label><select id="spyA" disabled></select>
+    <label for="spyB">Second</label><select id="spyB" disabled></select>
+    <button class="g" id="collude" disabled>Compare notes</button>
+  </div>
+  <div id="colludeOut"></div>
+</div>
+
+<h2><b>4</b> · It still has to pay</h2>
+<p class="note">
+  Unlinkability is worthless if the money stops moving. The secret is walked back along the route
+  and every hop's own lock is opened by the scalar it derives, checked here against the point it
+  was given.
+</p>
+<div class="panel">
+  <div class="row"><button id="settle" disabled>Settle the route</button></div>
+  <div id="settleOut"></div>
+</div>
+
+<h2>What is actually being trusted</h2>
+<p>
+  secp256k1, and the sender to pick its blinding offsets at random. Nothing else. No
+  intermediary has to be honest for the privacy to hold, because none of them is given anything
+  worth comparing. The recipient's secret never appears on the route at all, and the hop nearest
+  the recipient learns a scalar that is not it.
+</p>
+<p class="note" id="scope">
+  Implemented: per-hop blinded payment points, the backwards settlement walk with each hop's
+  scalar checked against its own point, and the hash-locked comparison it is measured against.
+  Not implemented: adaptor signatures over real channel commitments, onion routing and the
+  delivery of offsets to each hop, timeouts and failure paths, and anything touching a network.
+  Schnorr signatures are a precondition for PTLCs on Bitcoin and are not modelled here. This page
+  proves the unlinkability construction; it moves no money.
+</p>
+
+<footer>
+  <p><a href="https://github.com/Leihyn/sidelight">Source</a> · <a href="https://x.com/faruukku">@faruukku</a></p>
+  <p class="note">Demonstration keys, generated in your browser. Nothing is transmitted anywhere.</p>
+</footer>
+
+</div>
+
+<script type="module">
+import { ProjectivePoint as P } from './secp256k1.js';
+const N=0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141n, G=P.BASE;
+const $=s=>document.getElementById(s);
+const b2h=b=>[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("");
+const sha=async b=>new Uint8Array(await crypto.subtle.digest("SHA-256",b));
+const rnd=n=>{const b=new Uint8Array(n);crypto.getRandomValues(b);return b;};
+const mod=x=>((x%N)+N)%N, b2n=b=>BigInt("0x"+b2h(b));
+const cut=(s,n=22)=>s.length>n?s.slice(0,n)+"…":s;
+const esc=s=>String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+
+let R=null;
+const hopName=i=>"hop "+(i+1);
+
+$("send").onclick=async()=>{
+  try{
+    const n=+$("hops").value;
+    const z=mod(b2n(rnd(32)));                       // the recipient's secret
+    const offsets=[...Array(n)].map(()=>mod(b2n(rnd(32))));
+    // hop i is offered the point for z plus every offset from i onwards
+    const scalars=new Array(n); let acc=0n;
+    for(let i=n-1;i>=0;i--){ acc=mod(acc+offsets[i]); scalars[i]=mod(z+acc); }
+    const points=scalars.map(s=>G.mul(s).toHex(true));
+    const preimage=rnd(32);                          // the hash-locked comparison
+    const payHash=b2h(await sha(preimage));
+    R={n,z,offsets,scalars,points,preimage,payHash};
+    const nodes=['<span class="node end">sender</span>',
+      ...[...Array(n)].map((_,i)=>`<span class="node">${hopName(i)}</span>`),
+      '<span class="node end">recipient</span>'].join('<span class="link"></span>');
+    $("routeOut").innerHTML=`<div class="route">${nodes}</div>
+      <div class="out" style="margin-top:12px">
+        <div class="k">Hash-locked version — one payment hash for the whole route</div>
+        <div class="v" style="color:var(--no)">${R.payHash}</div>
+        <div class="k">Point-locked version — the recipient's secret, which never travels</div>
+        <div class="v" style="color:var(--cy)">${R.z.toString(16).padStart(64,"0")}</div>
+      </div>
+      <p class="note" style="margin-top:10px">${n} intermediaries. Both versions carry the same
+      value from the same sender to the same recipient.</p>`;
+    for(const s of ["spyA","spyB"]){
+      $(s).innerHTML=[...Array(n)].map((_,i)=>`<option value="${i}">${hopName(i)}</option>`).join("");
+      $(s).disabled=false;
+    }
+    $("spyA").value="0"; $("spyB").value=String(n-1);
+    $("show").disabled=false; $("collude").disabled=false; $("settle").disabled=false;
+    $("showOut").innerHTML=""; $("colludeOut").innerHTML=""; $("settleOut").innerHTML="";
+  }catch(e){ $("routeOut").innerHTML=`<div class="err">${esc(e.message)}</div>`; }
+};
+
+$("show").onclick=()=>{
+  try{
+    const uniqHash=new Set(Array(R.n).fill(R.payHash)).size;
+    const uniqPoint=new Set(R.points).size;
+    $("showOut").innerHTML=`<div class="scroll"><table>
+      <tr><th>Hop</th><th>Hash-locked: what it sees</th><th>Point-locked: what it sees</th></tr>
+      ${[...Array(R.n)].map((_,i)=>`<tr><td>${hopName(i)}</td>
+        <td class="m" style="color:var(--no)">${cut(R.payHash,26)}</td>
+        <td class="m" style="color:var(--cy)">${cut(R.points[i],26)}</td></tr>`).join("")}
+      <tr><td><b>distinct values</b></td>
+        <td><span class="pill no">${uniqHash} of ${R.n}</span></td>
+        <td><span class="pill ok">${uniqPoint} of ${R.n}</span></td></tr>
+    </table></div>
+    <p class="note" style="margin-top:10px">The left column is one value repeated ${R.n} times.
+    The right column is ${uniqPoint} values that share nothing, and none of them is the
+    recipient's secret.</p>`;
+  }catch(e){ $("showOut").innerHTML=`<div class="err">${esc(e.message)}</div>`; }
+};
+
+$("collude").onclick=()=>{
+  try{
+    const a=+$("spyA").value, b=+$("spyB").value;
+    if(a===b) throw new Error("Pick two different hops — a node comparing notes with itself learns nothing either way.");
+    const hashMatch=R.payHash===R.payHash;
+    const pointMatch=R.points[a]===R.points[b];
+    const nodes=['<span class="node end">sender</span>',
+      ...[...Array(R.n)].map((_,i)=>`<span class="node ${i===a||i===b?"spy":""}">${hopName(i)}</span>`),
+      '<span class="node end">recipient</span>'].join('<span class="link"></span>');
+    $("colludeOut").innerHTML=`<div class="route">${nodes}</div>
+      <div class="scroll" style="margin-top:12px"><table>
+      <tr><th></th><th>${hopName(a)} saw</th><th>${hopName(b)} saw</th><th>Same payment?</th></tr>
+      <tr class="same"><td>hash-locked</td><td class="m">${cut(R.payHash,22)}</td>
+        <td class="m">${cut(R.payHash,22)}</td>
+        <td><span class="pill no">${hashMatch?"proven — identical":"no"}</span></td></tr>
+      <tr class="uniq"><td>point-locked</td><td class="m">${cut(R.points[a],22)}</td>
+        <td class="m">${cut(R.points[b],22)}</td>
+        <td><span class="pill ${pointMatch?"no":"ok"}">${pointMatch?"proven — DEFECT":"nothing in common"}</span></td></tr>
+      </table></div>
+      <p class="note" style="margin-top:10px">Under the hash-locked scheme these two nodes now
+      know they were on one route together. Under the point-locked one they hold two unrelated
+      curve points, and no amount of comparing turns that into a link.</p>`;
+  }catch(e){ $("colludeOut").innerHTML=`<div class="err">${esc(e.message)}</div>`; }
+};
+
+$("settle").onclick=()=>{
+  try{
+    const rows=[]; let cur=R.z, allOk=true;
+    for(let i=R.n-1;i>=0;i--){
+      cur=mod(cur+R.offsets[i]);
+      const opens=G.mul(cur).toHex(true)===R.points[i];
+      if(!opens) allOk=false;
+      rows.unshift({i,scalar:cur,opens,isSecret:cur===R.z});
+    }
+    const leaked=rows.filter(r=>r.isSecret).length;
+    $("settleOut").innerHTML=`<div class="scroll"><table>
+      <tr><th>Hop</th><th>Scalar it derives</th><th>Opens its own point?</th><th>Is it the recipient's secret?</th></tr>
+      ${rows.map(r=>`<tr><td>${hopName(r.i)}</td>
+        <td class="m">${cut(r.scalar.toString(16).padStart(64,"0"),24)}</td>
+        <td><span class="pill ${r.opens?"ok":"no"}">${r.opens?"yes":"no"}</span></td>
+        <td><span class="pill ${r.isSecret?"no":"ok"}">${r.isSecret?"yes — DEFECT":"no"}</span></td></tr>`).join("")}
+    </table></div>
+    <div class="out" style="margin-top:12px">
+      <div class="k">Every hop settled</div>
+      <div class="v" style="color:${allOk?"var(--ok)":"var(--no)"}">${allOk?"yes, all "+R.n+" locks opened":"no"}</div>
+      <div class="k">Hops that learned the recipient's secret</div>
+      <div class="v" style="color:${leaked?"var(--no)":"var(--ok)"}">${leaked}</div></div>
+    <p class="note" style="margin-top:10px">The payment completed and every intermediary was paid,
+    while each one held a different secret and none held the recipient's. Privacy here costs the
+    route nothing.</p>`;
+  }catch(e){ $("settleOut").innerHTML=`<div class="err">${esc(e.message)}</div>`; }
+};
+
+if(new URLSearchParams(location.search).has("demo")){
+  await $("send").onclick(); $("show").onclick(); $("collude").onclick(); $("settle").onclick();
+}
+</script>
+</body>
+</html>
